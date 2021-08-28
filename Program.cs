@@ -14,13 +14,16 @@ namespace BanYouClient
         public delegate bool ConsoleCtrlDelegate(int dwCtrlType);
         [DllImport("kernel32.dll")]
         static extern bool SetConsoleCtrlHandler(ConsoleCtrlDelegate HandlerRoutine, bool Add);
+        static ConsoleCtrlDelegate exitHandler = new ConsoleCtrlDelegate(ExitHandler);
         static HostsFile hostsFile = new HostsFile();
+        static ProxyServer proxyServer = new ProxyServer();
         static string CurBanYouClientVer = "b20210828.1";
 
-        private static bool exitHandler(int CtrlType)
+        private static bool ExitHandler(int CtrlType)
         {
+            proxyServer.Stop();
             hostsFile.Remove();
-            return true;
+            return false;
         }
         private static async Task OnRequest(object sender, SessionEventArgs e)
         {
@@ -64,14 +67,13 @@ namespace BanYouClient
         }
         private static void Main(string[] args)
         {
-            SetConsoleCtrlHandler(new ConsoleCtrlDelegate(exitHandler), true);
+            SetConsoleCtrlHandler(exitHandler, true);
             Console.WriteLine(string.Format("BanYou 客户端 ({0}) 初始化...", CurBanYouClientVer));
             CertManager.InstallCertificate("cert/ca.crt", System.Security.Cryptography.X509Certificates.StoreName.Root);
             CertManager.InstallCertificate("cert/osu.crt", System.Security.Cryptography.X509Certificates.StoreName.CertificateAuthority);
-            var proxyServer = new ProxyServer();
             proxyServer.BeforeRequest += OnRequest;
-            var httpEndPoint = new TransparentProxyEndPoint(IPAddress.Any, 80, false);
-            var httpsEndPoint = new TransparentProxyEndPoint(IPAddress.Any, 443, true)
+            TransparentProxyEndPoint httpEndPoint = new TransparentProxyEndPoint(IPAddress.Any, 80, false);
+            TransparentProxyEndPoint httpsEndPoint = new TransparentProxyEndPoint(IPAddress.Any, 443, true)
             {
                 GenericCertificate = new System.Security.Cryptography.X509Certificates.X509Certificate2("cert/ppy.sh.pfx")
             };
@@ -86,8 +88,7 @@ namespace BanYouClient
             try
             {
                 hostsFile.Write(hostsEntry);
-            } catch
-            {
+            } catch {
                 Console.WriteLine("访问被拒绝，请关闭你的杀毒软件然后再试一次.");
                 Console.ReadKey(true);
                 return;
