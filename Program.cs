@@ -18,6 +18,7 @@ namespace BanYouClient
         static HostsFile hostsFile = new HostsFile();
         static ProxyServer proxyServer = new ProxyServer();
         static string CurBanYouClientVer = "b20210828.1";
+        static string ProgramTitle = string.Format("BanYou 客户端 ({0})", CurBanYouClientVer);
 
         private static bool ExitHandler(int CtrlType)
         {
@@ -68,7 +69,8 @@ namespace BanYouClient
         private static void Main(string[] args)
         {
             SetConsoleCtrlHandler(exitHandler, true);
-            Console.WriteLine(string.Format("BanYou 客户端 ({0}) 初始化...", CurBanYouClientVer));
+            Console.Title = ProgramTitle;
+            Console.WriteLine("BanYou 客户端初始化...");
             CertManager.InstallCertificate("cert/ca.crt", System.Security.Cryptography.X509Certificates.StoreName.Root);
             CertManager.InstallCertificate("cert/osu.crt", System.Security.Cryptography.X509Certificates.StoreName.CertificateAuthority);
             proxyServer.BeforeRequest += OnRequest;
