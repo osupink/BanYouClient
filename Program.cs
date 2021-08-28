@@ -15,6 +15,7 @@ namespace BanYouClient
         [DllImport("kernel32.dll")]
         static extern bool SetConsoleCtrlHandler(ConsoleCtrlDelegate HandlerRoutine, bool Add);
         static HostsFile hostsFile = new HostsFile();
+        static string CurBanYouClientVer = "b20210828.1";
 
         private static bool exitHandler(int CtrlType)
         {
@@ -64,7 +65,7 @@ namespace BanYouClient
         private static void Main(string[] args)
         {
             SetConsoleCtrlHandler(new ConsoleCtrlDelegate(exitHandler), true);
-            Console.WriteLine("BanYou 客户端初始化...");
+            Console.WriteLine(string.Format("BanYou 客户端 ({0}) 初始化...", CurBanYouClientVer));
             CertManager.InstallCertificate("cert/ca.crt", System.Security.Cryptography.X509Certificates.StoreName.Root);
             CertManager.InstallCertificate("cert/osu.crt", System.Security.Cryptography.X509Certificates.StoreName.CertificateAuthority);
             var proxyServer = new ProxyServer();
