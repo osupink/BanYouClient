@@ -71,8 +71,6 @@ namespace BanYouClient
                         default:
                             UriBuilder modUri = new UriBuilder(e.HttpClient.Request.RequestUri);
                             modUri.Host = "104.22.74.180";
-                            modUri.Scheme = "http";
-                            modUri.Port = 80;
                             HttpClientHandler httpClientHandler = new HttpClientHandler
                             {
                                 AllowAutoRedirect = false,
