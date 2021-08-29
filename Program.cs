@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -19,7 +19,7 @@ namespace BanYouClient
         static ConsoleCtrlDelegate exitHandler = new ConsoleCtrlDelegate(ExitHandler);
         static HostsFile hostsFile = new HostsFile();
         static ProxyServer proxyServer = new ProxyServer();
-        static string CurBanYouClientVer = "b20210829.1";
+        static string CurBanYouClientVer = "b20210829.2";
         static string ProgramTitle = string.Format("BanYou 客户端 ({0})", CurBanYouClientVer);
 
         private static bool ExitHandler(int CtrlType)
@@ -79,22 +79,22 @@ namespace BanYouClient
                             using (HttpClient httpClient = new HttpClient(httpClientHandler))
                             {
                                 httpClient.DefaultRequestHeaders.Host = "osu.ppy.sh";
-                                HttpRequestMessage httpReqMessage = null;
+                                HttpRequestMessage httpReqMessage = new HttpRequestMessage(new HttpMethod(e.HttpClient.Request.Method), modUri.Uri);
                                 switch (e.HttpClient.Request.Method.ToUpper())
                                 {
-                                    case "GET":
-                                        httpReqMessage = new HttpRequestMessage(HttpMethod.Get, modUri.Uri);
-                                        break;
-                                    case "HEAD":
-                                        httpReqMessage = new HttpRequestMessage(HttpMethod.Head, modUri.Uri);
-                                        break;
+                                    case "PUT":
                                     case "POST":
-                                        httpReqMessage = new HttpRequestMessage(HttpMethod.Post, modUri.Uri);
-                                        httpReqMessage.Content = new ByteArrayContent(await e.GetRequestBody());
+                                    case "PATCH":
+                                        byte[] bodyBytes = await e.GetRequestBody();
+                                        if (bodyBytes != null && bodyBytes.Length > 0)
+                                        {
+                                            httpReqMessage.Content = new ByteArrayContent(await e.GetRequestBody());
+                                        }
                                         break;
                                     default:
-                                        return;
+                                        break;
                                 }
+                                //httpReqMessage.Content = new ByteArrayContent(await e.GetRequestBody());
                                 List<HttpHeader> headers = e.HttpClient.Request.Headers.GetAllHeaders();
                                 foreach (HttpHeader header in headers)
                                 {
