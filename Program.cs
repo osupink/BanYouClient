@@ -71,29 +71,73 @@ namespace BanYouClient
                         default:
                             UriBuilder modUri = new UriBuilder(e.HttpClient.Request.RequestUri);
                             modUri.Host = "104.22.74.180";
+                            modUri.Scheme = "http";
+                            modUri.Port = 80;
                             HttpClientHandler httpClientHandler = new HttpClientHandler
                             {
-                                AllowAutoRedirect = false
+                                AllowAutoRedirect = false,
+                                UseCookies = false
                             };
                             using (HttpClient httpClient = new HttpClient(httpClientHandler))
                             {
                                 httpClient.DefaultRequestHeaders.Host = "osu.ppy.sh";
-                                HttpResponseMessage httpResponseMessage;
+                                HttpRequestMessage httpReqMessage = null;
                                 switch (e.HttpClient.Request.Method.ToUpper())
                                 {
                                     case "GET":
-                                        httpResponseMessage = await httpClient.GetAsync(modUri.Uri);
+                                        httpReqMessage = new HttpRequestMessage(HttpMethod.Get, modUri.Uri);
                                         break;
                                     case "HEAD":
-                                        httpResponseMessage = await httpClient.SendAsync(new HttpRequestMessage(HttpMethod.Head, modUri.Uri));
+                                        httpReqMessage = new HttpRequestMessage(HttpMethod.Head, modUri.Uri);
                                         break;
                                     case "POST":
-                                        byte[] bodyBytes = await e.GetRequestBody();
-                                        httpResponseMessage = await httpClient.PostAsync(modUri.Uri, new ByteArrayContent(await e.GetRequestBody()));
+                                        httpReqMessage = new HttpRequestMessage(HttpMethod.Post, modUri.Uri);
+                                        httpReqMessage.Content = new ByteArrayContent(await e.GetRequestBody());
                                         break;
                                     default:
                                         return;
                                 }
+                                List<HttpHeader> headers = e.HttpClient.Request.Headers.GetAllHeaders();
+                                foreach (HttpHeader header in headers)
+                                {
+                                    try
+                                    {
+                                        if (string.IsNullOrEmpty(header.Value))
+                                        {
+                                            continue;
+                                        }
+                                        switch (header.Name.ToLower())
+                                        {
+                                            case "host":
+                                            case "connection":
+                                            case "accept-encoding":
+                                                continue;
+                                            case "content-length":
+                                                if (httpReqMessage != null)
+                                                {
+                                                    httpReqMessage.Content.Headers.ContentLength = long.Parse(header.Value);
+                                                }
+                                                continue;
+                                            case "content-type":
+                                                if (httpReqMessage != null)
+                                                {
+                                                    httpReqMessage.Content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse(header.Value);
+                                                }
+                                                continue;
+                                            default:
+                                                break;
+                                        }
+                                        if (!httpClient.DefaultRequestHeaders.Contains(header.Name))
+                                        {
+                                            httpClient.DefaultRequestHeaders.Add(header.Name, header.Value);
+                                        }
+                                    } catch (Exception he)
+                                    {
+                                        Console.WriteLine(he);
+                                        Console.WriteLine(header.Name);
+                                    }
+                                }
+                                HttpResponseMessage httpResponseMessage = await httpClient.SendAsync(httpReqMessage);
                                 List<HttpHeader> IDHeaderList = new List<HttpHeader>();
                                 foreach (KeyValuePair<string, IEnumerable<string>> h in httpResponseMessage.Headers.Concat(httpResponseMessage.Content.Headers))
                                 {
@@ -167,7 +211,8 @@ namespace BanYouClient
                 if (e.InnerException.GetType() == typeof(System.Net.Sockets.SocketException))
                 {
                     Console.WriteLine("端口已被占用，如没有重复打开客户端，请使用 FixTool 工具来进行修复.");
-                } else
+                }
+                else
                 {
                     Console.WriteLine("Exception: " + e.Message);
                     Console.WriteLine(e.InnerException);
