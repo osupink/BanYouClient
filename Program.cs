@@ -19,7 +19,7 @@ namespace BanYouClient
         static ConsoleCtrlDelegate exitHandler = new ConsoleCtrlDelegate(ExitHandler);
         static HostsFile hostsFile = new HostsFile();
         static ProxyServer proxyServer = new ProxyServer();
-        static string CurBanYouClientVer = "b20210904.1";
+        static string CurBanYouClientVer = "b20210911.1";
         static string ProgramTitle = string.Format("BanYou 客户端 ({0})", CurBanYouClientVer);
         static HttpClientHandler osuHTTPClientHandler = new HttpClientHandler
         {
