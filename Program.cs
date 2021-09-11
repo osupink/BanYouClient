@@ -44,17 +44,15 @@ namespace BanYouClient
         }
         private static async Task OnRequest(object sender, SessionEventArgs e)
         {
+            /*
             if (!e.HttpClient.Request.Url.Contains("ppy.sh"))
             {
                 e.GenericResponse("", HttpStatusCode.BadGateway);
             }
+            */
             Uri requestUri = e.HttpClient.Request.RequestUri;
             switch (e.HttpClient.Request.Host)
             {
-                case "c.ppy.sh":
-                case "c1.ppy.sh":
-                    e.HttpClient.Request.Host = "server.b.osu.pink";
-                    break;
                 case "osu.ppy.sh":
                     switch (requestUri.AbsolutePath)
                     {
@@ -80,7 +78,7 @@ namespace BanYouClient
                             break;
                         default:
                             UriBuilder modUri = new UriBuilder(e.HttpClient.Request.RequestUri);
-                            modUri.Host = "104.22.74.180";
+                            modUri.Host = "104.22.75.180";
                             HttpRequestMessage httpReqMessage = new HttpRequestMessage(new HttpMethod(e.HttpClient.Request.Method), modUri.Uri);
                             switch (e.HttpClient.Request.Method.ToUpper())
                             {
@@ -160,6 +158,9 @@ namespace BanYouClient
                             return;
                     }
                     e.HttpClient.Request.Host = "score.b.osu.pink";
+                    break;
+                default:
+                    e.HttpClient.Request.Host = "server.b.osu.pink";
                     break;
             }
         }
