@@ -19,7 +19,7 @@ namespace BanYouClient
         static ConsoleCtrlDelegate exitHandler = new ConsoleCtrlDelegate(ExitHandler);
         static HostsFile hostsFile = new HostsFile();
         static ProxyServer proxyServer = new ProxyServer();
-        static string CurBanYouClientVer = "b20210911.1";
+        static string CurBanYouClientVer = "b20210912.1";
         static string ProgramTitle = string.Format("BanYou 客户端 ({0})", CurBanYouClientVer);
         static HttpClientHandler osuHTTPClientHandler = new HttpClientHandler
         {
@@ -51,6 +51,9 @@ namespace BanYouClient
             }
             */
             Uri requestUri = e.HttpClient.Request.RequestUri;
+#if DEBUG
+            Console.WriteLine("URI: " + requestUri);
+#endif
             switch (e.HttpClient.Request.Host)
             {
                 case "osu.ppy.sh":
@@ -64,6 +67,9 @@ namespace BanYouClient
                         case "/web/osu-getfriends.php":
                         case "/web/osu-checktweets.php":
                         case "/web/osu-addfavourite.php":
+#if DEBUG
+                            Console.WriteLine("GenericResponse: 200 OK");
+#endif
                             e.GenericResponse("", HttpStatusCode.OK);
                             return;
                         case "/web/osu-error.php":
@@ -77,84 +83,92 @@ namespace BanYouClient
                         case "/web/bancho_connect.php":
                             break;
                         default:
-                            UriBuilder modUri = new UriBuilder(e.HttpClient.Request.RequestUri);
-                            modUri.Host = "104.22.75.180";
-                            HttpRequestMessage httpReqMessage = new HttpRequestMessage(new HttpMethod(e.HttpClient.Request.Method), modUri.Uri);
-                            switch (e.HttpClient.Request.Method.ToUpper())
+                            try
                             {
-                                case "PUT":
-                                case "POST":
-                                case "PATCH":
-                                    byte[] bodyBytes = await e.GetRequestBody();
-                                    if (bodyBytes != null && bodyBytes.Length > 0)
-                                    {
-                                        httpReqMessage.Content = new ByteArrayContent(await e.GetRequestBody());
-                                    }
-                                    break;
-                                default:
-                                    break;
-                            }
-                            //httpReqMessage.Content = new ByteArrayContent(await e.GetRequestBody());
-                            List<HttpHeader> headers = e.HttpClient.Request.Headers.GetAllHeaders();
-                            foreach (HttpHeader header in headers)
-                            {
-                                try
+                                Console.WriteLine("Do nothing.");
+                                UriBuilder modUri = new UriBuilder(e.HttpClient.Request.RequestUri);
+                                modUri.Host = "104.22.75.180";
+                                HttpRequestMessage httpReqMessage = new HttpRequestMessage(new HttpMethod(e.HttpClient.Request.Method), modUri.Uri);
+                                switch (e.HttpClient.Request.Method.ToUpper())
                                 {
-                                    if (string.IsNullOrEmpty(header.Value))
+                                    case "PUT":
+                                    case "POST":
+                                    case "PATCH":
+                                        byte[] bodyBytes = await e.GetRequestBody();
+                                        if (bodyBytes != null && bodyBytes.Length > 0)
+                                        {
+                                            httpReqMessage.Content = new ByteArrayContent(await e.GetRequestBody());
+                                        }
+                                        break;
+                                    default:
+                                        break;
+                                }
+                                //httpReqMessage.Content = new ByteArrayContent(await e.GetRequestBody());
+                                List<HttpHeader> headers = e.HttpClient.Request.Headers.GetAllHeaders();
+                                foreach (HttpHeader header in headers)
+                                {
+                                    try
                                     {
-                                        continue;
+                                        if (string.IsNullOrEmpty(header.Value))
+                                        {
+                                            continue;
+                                        }
+                                        switch (header.Name.ToLower())
+                                        {
+                                            case "host":
+                                            case "connection":
+                                            case "accept-encoding":
+                                                continue;
+                                            case "content-length":
+                                                if (httpReqMessage != null)
+                                                {
+                                                    httpReqMessage.Content.Headers.ContentLength = long.Parse(header.Value);
+                                                }
+                                                continue;
+                                            case "content-type":
+                                                if (httpReqMessage != null)
+                                                {
+                                                    httpReqMessage.Content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse(header.Value);
+                                                }
+                                                continue;
+                                            default:
+                                                break;
+                                        }
+                                        if (!osuHTTPClient.DefaultRequestHeaders.Contains(header.Name))
+                                        {
+                                            osuHTTPClient.DefaultRequestHeaders.Add(header.Name, header.Value);
+                                        }
                                     }
-                                    switch (header.Name.ToLower())
+                                    catch (Exception he)
                                     {
-                                        case "host":
-                                        case "connection":
-                                        case "accept-encoding":
-                                            continue;
-                                        case "content-length":
-                                            if (httpReqMessage != null)
-                                            {
-                                                httpReqMessage.Content.Headers.ContentLength = long.Parse(header.Value);
-                                            }
-                                            continue;
-                                        case "content-type":
-                                            if (httpReqMessage != null)
-                                            {
-                                                httpReqMessage.Content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse(header.Value);
-                                            }
+                                        Console.WriteLine(he);
+                                        Console.WriteLine(header.Name);
+                                    }
+                                }
+                                HttpResponseMessage httpResponseMessage = await osuHTTPClient.SendAsync(httpReqMessage);
+                                List<HttpHeader> IDHeaderList = new List<HttpHeader>();
+                                foreach (KeyValuePair<string, IEnumerable<string>> h in httpResponseMessage.Headers.Concat(httpResponseMessage.Content.Headers))
+                                {
+                                    switch (h.Key.ToLower())
+                                    {
+                                        case "alt-svc":
                                             continue;
                                         default:
                                             break;
                                     }
-                                    if (!osuHTTPClient.DefaultRequestHeaders.Contains(header.Name))
+                                    foreach (var c in h.Value)
                                     {
-                                        osuHTTPClient.DefaultRequestHeaders.Add(header.Name, header.Value);
+                                        HttpHeader hh = new HttpHeader(h.Key, c);
+                                        IDHeaderList.Add(hh);
                                     }
                                 }
-                                catch (Exception he)
-                                {
-                                    Console.WriteLine(he);
-                                    Console.WriteLine(header.Name);
-                                }
-                            }
-                            HttpResponseMessage httpResponseMessage = await osuHTTPClient.SendAsync(httpReqMessage);
-                            List<HttpHeader> IDHeaderList = new List<HttpHeader>();
-                            foreach (KeyValuePair<string, IEnumerable<string>> h in httpResponseMessage.Headers.Concat(httpResponseMessage.Content.Headers))
+                                IEnumerable<HttpHeader> IDHeader = IDHeaderList.AsEnumerable();
+                                e.GenericResponse(await httpResponseMessage.Content.ReadAsByteArrayAsync(), httpResponseMessage.StatusCode, IDHeader);
+                            } catch (Exception re)
                             {
-                                switch (h.Key.ToLower())
-                                {
-                                    case "alt-svc":
-                                        continue;
-                                    default:
-                                        break;
-                                }
-                                foreach (var c in h.Value)
-                                {
-                                    HttpHeader hh = new HttpHeader(h.Key, c);
-                                    IDHeaderList.Add(hh);
-                                }
+                                Console.WriteLine("Exception: " + re);
+                                Console.WriteLine(re.InnerException);
                             }
-                            IEnumerable<HttpHeader> IDHeader = IDHeaderList.AsEnumerable();
-                            e.GenericResponse(await httpResponseMessage.Content.ReadAsByteArrayAsync(), httpResponseMessage.StatusCode, IDHeader);
                             return;
                     }
                     e.HttpClient.Request.Host = "score.b.osu.pink";
@@ -163,6 +177,9 @@ namespace BanYouClient
                     e.HttpClient.Request.Host = "server.b.osu.pink";
                     break;
             }
+#if DEBUG
+            Console.WriteLine("Proxy to: " + e.HttpClient.Request.Host);
+#endif
         }
         private static void Main(string[] args)
         {
@@ -203,11 +220,6 @@ namespace BanYouClient
             try
             {
                 proxyServer.Start();
-                Console.WriteLine("启动完成!");
-                while (true)
-                {
-                    Console.ReadKey(true);
-                }
             }
             catch (Exception e)
             {
@@ -217,11 +229,17 @@ namespace BanYouClient
                 }
                 else
                 {
-                    Console.WriteLine("Exception: " + e.Message);
+                    Console.WriteLine("Exception: " + e);
                     Console.WriteLine(e.InnerException);
                 }
+                Console.ReadKey(true);
+                return;
             }
-            Console.ReadKey(true);
+            Console.WriteLine("启动完成!");
+            while (true)
+            {
+                Console.ReadKey(true);
+            }
         }
     }
 }
