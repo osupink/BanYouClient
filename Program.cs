@@ -19,7 +19,7 @@ namespace BanYouClient
         static ConsoleCtrlDelegate exitHandler = new ConsoleCtrlDelegate(ExitHandler);
         static HostsFile hostsFile = new HostsFile();
         static ProxyServer proxyServer = new ProxyServer();
-        static string CurBanYouClientVer = "b20210913.2";
+        static string CurBanYouClientVer = "b20210913.3";
             static HttpClientHandler osuHTTPClientHandler = new HttpClientHandler
         {
             AllowAutoRedirect = false,
@@ -86,9 +86,11 @@ namespace BanYouClient
                         case "/web/osu-submit-modular-selector.php":
                             break;
                         default:
+#if DEBUG
+                            Console.WriteLine("Do nothing.");
+#endif
                             try
                             {
-                                Console.WriteLine("Do nothing.");
                                 UriBuilder modUri = new UriBuilder(e.HttpClient.Request.RequestUri);
                                 modUri.Host = "104.22.74.180";
                                 HttpRequestMessage httpReqMessage = new HttpRequestMessage(new HttpMethod(e.HttpClient.Request.Method), modUri.Uri);
