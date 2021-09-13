@@ -19,9 +19,8 @@ namespace BanYouClient
         static ConsoleCtrlDelegate exitHandler = new ConsoleCtrlDelegate(ExitHandler);
         static HostsFile hostsFile = new HostsFile();
         static ProxyServer proxyServer = new ProxyServer();
-        static string CurBanYouClientVer = "b20210912.1";
-        static string ProgramTitle = string.Format("BanYou 客户端 ({0})", CurBanYouClientVer);
-        static HttpClientHandler osuHTTPClientHandler = new HttpClientHandler
+        static string CurBanYouClientVer = "b20210913.2";
+            static HttpClientHandler osuHTTPClientHandler = new HttpClientHandler
         {
             AllowAutoRedirect = false,
             UseCookies = false,
@@ -62,32 +61,36 @@ namespace BanYouClient
                         case "/web/coins.php":
                         case "/web/lastfm.php":
                         case "/web/osu-rate.php":
-                        case "/web/osu-markasread.php":
+                        case "/web/osu-magnet.php":
+                        case "/web/osu-comment.php":
+                        case "/web/osu-metrics.php":
                         case "/web/osu-session.php":
+                        case "/web/osu-getcharts.php":
+                        case "/web/osu-markasread.php":
                         case "/web/osu-getfriends.php":
                         case "/web/osu-checktweets.php":
+                        case "/web/osu-getfavourite.php":
                         case "/web/osu-addfavourite.php":
+                        case "/web/osu-getbeatmapinfo.php":
+                        case "/web/bancho_connect.php":
 #if DEBUG
                             Console.WriteLine("GenericResponse: 200 OK");
 #endif
                             e.GenericResponse("", HttpStatusCode.OK);
                             return;
                         case "/web/osu-error.php":
-                        case "/web/osu-comment.php":
                         case "/web/osu-getreplay.php":
+                        case "/web/osu-screenshot.php":
                         case "/web/osu-osz2-getscores.php":
                         case "/web/osu-submit-modular.php":
                         case "/web/osu-submit-modular-selector.php":
-                        case "/web/osu-screenshot.php":
-                        case "/web/osu-getbeatmapinfo.php":
-                        case "/web/bancho_connect.php":
                             break;
                         default:
                             try
                             {
                                 Console.WriteLine("Do nothing.");
                                 UriBuilder modUri = new UriBuilder(e.HttpClient.Request.RequestUri);
-                                modUri.Host = "104.22.75.180";
+                                modUri.Host = "104.22.74.180";
                                 HttpRequestMessage httpReqMessage = new HttpRequestMessage(new HttpMethod(e.HttpClient.Request.Method), modUri.Uri);
                                 switch (e.HttpClient.Request.Method.ToUpper())
                                 {
@@ -134,9 +137,9 @@ namespace BanYouClient
                                             default:
                                                 break;
                                         }
-                                        if (!osuHTTPClient.DefaultRequestHeaders.Contains(header.Name))
+                                        if (!httpReqMessage.Headers.Contains(header.Name))
                                         {
-                                            osuHTTPClient.DefaultRequestHeaders.Add(header.Name, header.Value);
+                                            httpReqMessage.Headers.Add(header.Name, header.Value);
                                         }
                                     }
                                     catch (Exception he)
@@ -184,6 +187,10 @@ namespace BanYouClient
         private static void Main(string[] args)
         {
             SetConsoleCtrlHandler(exitHandler, true);
+#if DEBUG
+            CurBanYouClientVer += "dev";
+#endif
+            string ProgramTitle = string.Format("BanYou 客户端 ({0})", CurBanYouClientVer);
             Console.Title = ProgramTitle;
             Console.WriteLine("BanYou 客户端初始化...");
             CertManager.InstallCertificate("cert/ca.crt", System.Security.Cryptography.X509Certificates.StoreName.Root);
