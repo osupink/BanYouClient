@@ -1,3 +1,4 @@
+using DnsClient;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,9 +18,13 @@ namespace BanYouClient
         [DllImport("kernel32.dll")]
         static extern bool SetConsoleCtrlHandler(ConsoleCtrlDelegate HandlerRoutine, bool Add);
         static ConsoleCtrlDelegate exitHandler = new ConsoleCtrlDelegate(ExitHandler);
+
+        const int defaultHTTPPort = 80;
+        const int defaultHTTPSPort = 443;
+
         static HostsFile hostsFile = new HostsFile();
         static ProxyServer proxyServer = new ProxyServer();
-        static string CurBanYouClientVer = "b20210913.3";
+        static string CurBanYouClientVer = "b20211008.1";
             static HttpClientHandler osuHTTPClientHandler = new HttpClientHandler
         {
             AllowAutoRedirect = false,
@@ -27,7 +32,10 @@ namespace BanYouClient
             AutomaticDecompression = DecompressionMethods.Deflate | DecompressionMethods.GZip
         };
         static HttpClient osuHTTPClient = new HttpClient(osuHTTPClientHandler);
-
+        static LookupClient dnsClient = new LookupClient();
+        static IDnsQueryResponse ppyDnsResponse = dnsClient.Query("osu.ppy.sh", QueryType.A);
+        static  IEnumerable<DnsClient.Protocol.AddressRecord> ppyDnsAddressList = ppyDnsResponse.Answers.AddressRecords();
+        static DnsClient.Protocol.AddressRecord ppyDnsAddressRecord = ppyDnsAddressList.ElementAt(new Random().Next(ppyDnsAddressList.Count()));
         private static bool ExitHandler(int CtrlType)
         {
             if (proxyServer.ProxyRunning)
@@ -51,11 +59,20 @@ namespace BanYouClient
             */
             Uri requestUri = e.HttpClient.Request.RequestUri;
 #if DEBUG
-            Console.WriteLine("URI: " + requestUri);
+            Console.WriteLine("URI: " + requestUri.OriginalString);
 #endif
             switch (e.HttpClient.Request.Host)
             {
                 case "osu.ppy.sh":
+                    if (requestUri.AbsolutePath.StartsWith("/d/"))
+                    {
+                        string redirectURI = "https://txy1.sayobot.cn/beatmaps/download/" + requestUri.AbsolutePath.Substring(3);
+#if DEBUG
+                        Console.WriteLine("Redirect: " + redirectURI);
+#endif
+                        e.Redirect(redirectURI);
+                        return;
+                    }
                     switch (requestUri.AbsolutePath)
                     {
                         case "/web/coins.php":
@@ -76,7 +93,7 @@ namespace BanYouClient
 #if DEBUG
                             Console.WriteLine("GenericResponse: 200 OK");
 #endif
-                            e.GenericResponse("", HttpStatusCode.OK);
+                            e.Ok("");
                             return;
                         case "/web/osu-error.php":
                         case "/web/osu-getreplay.php":
@@ -92,7 +109,7 @@ namespace BanYouClient
                             try
                             {
                                 UriBuilder modUri = new UriBuilder(e.HttpClient.Request.RequestUri);
-                                modUri.Host = "104.22.74.180";
+                                modUri.Host = ppyDnsAddressRecord.Address.ToString();
                                 HttpRequestMessage httpReqMessage = new HttpRequestMessage(new HttpMethod(e.HttpClient.Request.Method), modUri.Uri);
                                 switch (e.HttpClient.Request.Method.ToUpper())
                                 {
@@ -169,10 +186,27 @@ namespace BanYouClient
                                 }
                                 IEnumerable<HttpHeader> IDHeader = IDHeaderList.AsEnumerable();
                                 e.GenericResponse(await httpResponseMessage.Content.ReadAsByteArrayAsync(), httpResponseMessage.StatusCode, IDHeader);
-                            } catch (Exception re)
+                            }
+                            catch (TaskCanceledException)
                             {
-                                Console.WriteLine("Exception: " + re);
-                                Console.WriteLine(re.InnerException);
+                            }
+                            catch (HttpRequestException requestWebException)
+                            {
+                                if (requestWebException.InnerException is WebException && requestWebException.InnerException.InnerException is System.Net.Sockets.SocketException)
+                                {
+                                    IPAddress before = ppyDnsAddressRecord.Address;
+                                    ppyDnsAddressRecord = ppyDnsAddressList.Where(s => s.Address != ppyDnsAddressRecord.Address).ElementAt(new Random().Next(ppyDnsAddressList.Count()));
+#if DEBUG
+                                    Console.WriteLine("SocketException: " + requestWebException.InnerException.InnerException);
+                                    Console.WriteLine("Current ppy DNS Address: " + ppyDnsAddressRecord.Address.ToString());
+#endif
+                                    Console.WriteLine("ppy 服务器超时，已尝试更换服务器地址.");
+                                }
+                            }
+                            catch (Exception requestException)
+                            {
+                                Console.WriteLine("Exception: " + requestException);
+                                Console.WriteLine(requestException.InnerException);
                             }
                             return;
                     }
@@ -201,8 +235,70 @@ namespace BanYouClient
             osuHTTPClient.DefaultRequestHeaders.Connection.Add("keep-alive");
             proxyServer.ReuseSocket = false;
             proxyServer.BeforeRequest += OnRequest;
-            TransparentProxyEndPoint httpEndPoint = new TransparentProxyEndPoint(IPAddress.Any, 80, false);
-            TransparentProxyEndPoint httpsEndPoint = new TransparentProxyEndPoint(IPAddress.Any, 443, true)
+            int httpPort = defaultHTTPPort;
+            int httpsPort = defaultHTTPSPort;
+            if (System.IO.File.Exists("CustomPort"))
+            {
+                using (System.IO.StreamReader sr = new System.IO.StreamReader("CustomPort"))
+                {
+#if DEBUG
+                    Console.WriteLine("Parsing CustomPort...");
+#endif
+                    bool https = true;
+                    string line;
+                    while ((line = sr.ReadLine()) != null)
+                    {
+                        if (line.StartsWith("HTTP:"))
+                        {
+                            https = false;
+                            line = line.Substring(5);
+                        }
+                        else if (line.StartsWith("HTTPS:"))
+                        {
+                            line = line.Substring(6);
+                        }
+                        else
+                        {
+                            continue;
+                        }
+                        if (int.TryParse(line, out int parsePort))
+                        {
+                            if (parsePort < 1 && parsePort > 65535)
+                            {
+                                continue;
+                            }
+                            if (https)
+                            {
+                                httpsPort = parsePort;
+                            }
+                            else
+                            {
+                                httpPort = parsePort;
+                            }
+                        }
+#if DEBUG
+                        else
+                        {
+                            Console.WriteLine("Parsing CustomPort failed!");
+                        }
+#endif
+                    }
+                }
+            }
+
+#if !DEBUG
+            if (httpPort != defaultHTTPPort || httpsPort != defaultHTTPSPort)
+            {
+#endif
+                Console.WriteLine(string.Format("Current Port: {0} (HTTP), {1} (HTTPS)", httpPort, httpsPort));
+#if !DEBUG
+        }
+#endif
+#if DEBUG
+            Console.WriteLine("Current ppy DNS Address: " + ppyDnsAddressRecord.Address.ToString());
+#endif
+            TransparentProxyEndPoint httpEndPoint = new TransparentProxyEndPoint(IPAddress.Any, httpPort, false);
+            TransparentProxyEndPoint httpsEndPoint = new TransparentProxyEndPoint(IPAddress.Any, httpsPort, true)
             {
                 GenericCertificate = new System.Security.Cryptography.X509Certificates.X509Certificate2("cert/ppy.sh.pfx")
             };
@@ -222,7 +318,9 @@ namespace BanYouClient
             {
                 Console.WriteLine("访问被拒绝，请关闭你的杀毒软件然后再试一次.");
                 Console.ReadKey(true);
+#if !DEBUG
                 return;
+#endif
             }
 
             Console.WriteLine("正在启动 BanYou 客户端...");
